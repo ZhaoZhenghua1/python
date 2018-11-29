@@ -26,7 +26,7 @@ def GetAllFiles(path):
             ret += (GetAllFiles(path + '\\' + list[i]))
     return ret
 
-filePath = r"D:\历史ttt"#sys.argv[1]r"D:\ttt"#
+filePath = sys.argv[1]#r"D:\ttt"
 print("文件路径：" + filePath)
 allfiles = GetAllFiles(filePath)
 
@@ -77,13 +77,14 @@ def SplitString(string, regex):
     ret = re.split(regex, string)
     ret = [x for x in ret if len(x.strip()) != 0]#去除空句子
     ret = [re.sub(r"\s+", "", sentence, flags=re.UNICODE) for sentence in ret]#去除句子中的空白字符
+    ret = [re.sub(r"[;:；：]+", "", sentence, flags=re.UNICODE) for sentence in ret]
     return ret
 
 def SplitSentences(text):
     ret = []
     lines = text.splitlines(False)
     for line in lines:
-        segs = SplitString(line, r'。|？|！|，|,')
+        segs = SplitString(line, r'。|｡|？|！|，|,')
         ret += segs
     return ret
 
@@ -105,18 +106,18 @@ class TestThread(threading.Thread):
             print("dealing==:" + path)
             if len(path) == 0:
                 break
-            #try:
-            if True:
-                text = GetWordText(path)
-                text = PreProcessing('H', text)
-                if len(text) == 0:
-                    continue
-                sentences =  SplitSentences(text)
-                for sent in sentences:
-                    global AllSegments
-                    AddToBuffer(sent)
-            #except Exception as e:
-            #    error(traceback.format_exc())
+            try:
+                if True:
+                    text = GetWordText(path)
+                    text = PreProcessing('H', text)
+                    if len(text) == 0:
+                        continue
+                    sentences =  SplitSentences(text)
+                    for sent in sentences:
+                        global AllSegments
+                        AddToBuffer(sent)
+            except Exception as e:
+                error(traceback.format_exc())
      def run(self):
         self.recognise()
 
@@ -159,13 +160,15 @@ def GetSubject(path):
             return subjects[key]
     return ""
 subject = GetSubject(filePath)
+if len(subject) == 0:
+    print("无法从目录中解析到学科")
+    exit(0)
 print('subject:' + subject)
 
 sentenceAndSegments = Segment(sortedSentences)
 
 write = open(filePath + r'\allfiledata.txt', "wb")
-write.write(json.dumps(sentenceAndSegments,ensure_ascii=False).encode('utf-16'))
+for seg in sentenceAndSegments:
+    temp = {'s':seg['SentenceContent'], 'g':seg['SentenceSegWords']}
+    write.write((json.dumps(temp,ensure_ascii=False) + '\n').encode('utf-16'))
 write.close()
-#import pickle
-#with open(filePath + r'\allfiledata.text', 'wb') as fp:
-#    pickle.dump(sentenceAndSegments, fp)
