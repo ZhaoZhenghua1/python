@@ -11,6 +11,7 @@ from xlrd import open_workbook
 import xlwt
 import xlsxwriter
 import requests
+from time import gmtime, strftime
 
 def GetAllFiles(path):
     ret = []
@@ -26,9 +27,7 @@ def GetAllFiles(path):
             ret += (GetAllFiles(path + '\\' + list[i]))
     return ret
 
-filePath = sys.argv[1]#r"D:\ttt"
-print("文件路径：" + filePath)
-allfiles = GetAllFiles(filePath)
+document = open("error" + strftime("%Y-%m-%d %H-%M-%S", gmtime()) + ".txt","wb")
 
 threadLock = threading.Lock()
 def GetAvailableFile():
@@ -39,8 +38,6 @@ def GetAvailableFile():
         temp = '';
     threadLock.release()
     return temp
-
-document = open(filePath + '\\' + " error.txt","wb")
 
 threadLockError = threading.Lock()
 def error(str):
@@ -53,7 +50,10 @@ def GetWordText(file):
     dll = windll.LoadLibrary('CCSInteroperate.dll')
     jsn = c_wchar_p(dll.FileStandardise(file))
     result = json.loads(jsn.value)
-    windll.LoadLibrary('OleAut32.dll').SysFreeString(jsn)
+    try:
+        windll.LoadLibrary('OleAut32.dll').SysFreeString(jsn)
+    except Exception as e:
+        error(traceback.format_exc())
     data = result['Data']
     fileSt = json.loads(data)
     if fileSt['Stauts'] != 1:
@@ -64,7 +64,7 @@ def GetWordText(file):
 
 
 dll = windll.LoadLibrary('AllSubjectsKnowledgeRec.dll')
-dll.InitService('172.16.63.20', '9102')
+#print(c_wchar_p(dll.InitService('172.16.63.25', '10108')).value)
 
 def PreProcessing(subject, text):
     dll = windll.LoadLibrary('AllSubjectsKnowledgeRec.dll')
@@ -84,7 +84,7 @@ def SplitSentences(text):
     ret = []
     lines = text.splitlines(False)
     for line in lines:
-        segs = SplitString(line, r'。|｡|？|！|，|,')
+        segs = SplitString(line, r'。|｡|？|！')
         ret += segs
     return ret
 
@@ -109,7 +109,8 @@ class TestThread(threading.Thread):
             try:
                 if True:
                     text = GetWordText(path)
-                    text = PreProcessing('H', text)
+                    global subject
+                    text = PreProcessing(subject, text)
                     if len(text) == 0:
                         continue
                     sentences =  SplitSentences(text)
@@ -121,18 +122,12 @@ class TestThread(threading.Thread):
      def run(self):
         self.recognise()
 
-print('------------------------------------GetAllText--------------------------')
-threads=[TestThread(),TestThread(),TestThread(),TestThread(),TestThread()]
-for t in threads:
-    t.start()
-
-for t in threads:
-    t.join()
-print('------------------------------------FINISH GetAllText--------------------')
-sortedSentences = list(AllSegments)
-def SortByLen(array):
-    return len(str(array))
-sortedSentences.sort(key=SortByLen)
+def GetSubject(path):
+    subjects={'数学':'B','物理':'D','化学':'E','生物':'F','政治':'G','历史':'H','地理':'I', '语文':'A', '英语':'C'}
+    for key in subjects:
+        if path.find(key) != -1:
+            return subjects[key]
+    return ""
 
 def Segment(sentences):
     arrRet = []
@@ -153,22 +148,45 @@ def Segment(sentences):
         arrRet += segresult['Data']
     return arrRet
 
-def GetSubject(path):
-    subjects={'数学':'B','物理':'D','化学':'E','生物':'F','政治':'G','历史':'H','地理':'I', '语文':'A', '英语':'C'}
-    for key in subjects:
-        if path.find(key) != -1:
-            return subjects[key]
-    return ""
-subject = GetSubject(filePath)
-if len(subject) == 0:
-    print("无法从目录中解析到学科")
-    exit(0)
-print('subject:' + subject)
 
-sentenceAndSegments = Segment(sortedSentences)
+def main():
+    global filePath,allfiles,subject
+    filePath = sys.argv[1]#r"D:\ttt"
+    print("文件路径：" + filePath)
+    allfiles = GetAllFiles(filePath)
 
-write = open(filePath + r'\allfiledata.txt', "wb")
-for seg in sentenceAndSegments:
-    temp = {'s':seg['SentenceContent'], 'g':seg['SentenceSegWords']}
-    write.write((json.dumps(temp,ensure_ascii=False) + '\n').encode('utf-16'))
-write.close()
+    subject = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] in 'ABCDEFGHI' else GetSubject(filePath)
+    if len(subject) == 0:
+        print("无法从目录中解析到学科")
+        exit(0)
+    print('subject:' + subject)
+
+    print('------------------------------------GetAllText--------------------------')
+    threads=[TestThread(),TestThread(),TestThread(),TestThread(),TestThread()]
+    for t in threads:
+        t.start()
+
+    for t in threads:
+        t.join()
+    print('------------------------------------FINISH GetAllText--------------------')
+    sortedSentences = list(AllSegments)
+    def SortByLen(array):
+        return len(str(array))
+    sortedSentences.sort(key=SortByLen)
+    sentenceAndSegments = Segment(sortedSentences)
+
+    output = sys.argv[3] if len(sys.argv) > 3  else 'allfiledata.txt'
+    write = open(output, "wb")
+    for seg in sentenceAndSegments:
+        temp = {'s':seg['SentenceContent'], 'g':seg['SentenceSegWords']}
+        write.write((json.dumps(temp,ensure_ascii=False) + '\n').encode('utf-16'))
+    write.close()
+
+    if(document.tell() == 0):
+        document.close()
+        os.unlink(document.name)
+    else:
+        document.close()
+
+if __name__ == "__main__":
+    main()
