@@ -148,6 +148,28 @@ def Segment(sentences):
         arrRet += segresult['Data']
     return arrRet
 
+def SegStringToLst(seg):
+    ret = []
+    i = beg = 0
+    while i < len(seg):
+        if seg[i] == '/':
+            ret.append(seg[beg:i])
+            beg = i + 1
+
+            iEnd = i
+            while iEnd < len(seg) and seg[iEnd] == '/':
+                iEnd += 1
+            num = iEnd - i
+            if num > 2:
+                ret.append('/'*(num - 2))
+            elif num == 2:
+                ret.append('/')
+            beg = i = iEnd
+        i+=1
+
+    if(beg < len(seg)) :
+        ret.append(seg[beg:])
+    return ret
 
 def main():
     global filePath,allfiles,subject
@@ -178,7 +200,7 @@ def main():
     output = sys.argv[3] if len(sys.argv) > 3  else 'allfiledata.txt'
     write = open(output, "wb")
     for seg in sentenceAndSegments:
-        temp = {'s':seg['SentenceContent'], 'g':seg['SentenceSegWords']}
+        temp = {'s':seg['SentenceContent'], 'g':SegStringToLst(seg['SentenceSegWords'])}
         write.write((json.dumps(temp,ensure_ascii=False) + '\n').encode('utf-16'))
     write.close()
 
